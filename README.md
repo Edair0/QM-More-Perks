@@ -1,23 +1,23 @@
-# Quasimorph MorePerks
+# QM More Perks 
+# This is yet to be properly tested. Expect BUGS!
 
 ![thumbnail icon](media/thumbnail.png)
 
+# About
+This mod adds up to 3 additional perk slots for characters. 
+It allows to either manually select which perks to place in these new slots or choose a random mode that automatically assigns perks from the full available pool in the game.
+
+# Current Features:
+- Adds up to 3 additional perk slots for characters
+- Allows manual selection of perks for the extra slots
+- Supports a random mode to automatically assign perks from (almost) all available in the game.
+
 # Configuration
+The configuration file will be created on the first game run and can be found at
 
-The configuration file will be created on the first game run and can be found at `%AppData%\..\LocalLow\Magnum Scriptum Ltd\Quasimorph_ModConfigs\MorePerks\config.json`.
+`%AppData%\..\LocalLow\Magnum Scriptum Ltd\Quasimorph_ModConfigs\Edair0_MorePerks\config.txt`.
 
-|Name|Default|Description|
-|--|--|--|
-|FooKey|true|Some Description|
+Everything can be also configured while in-game without the need to restart it.
 
-## Key List
-The list of valid keyboard keys can be found  at the bottom of https://docs.unity3d.com/ScriptReference/KeyCode.html
-Beware that numbers 0-9 are Alpha0 - Alpha9.  Most of the other keys are as expected such as X for X.
-Use "None" to not bind the key.
-
-# Buy Me a Coffee
-If you enjoy my mods and want to buy me a coffee, check out my [Ko-Fi](https://ko-fi.com/nbkredspy71915) page.
-Thanks!
-
-# Source Code
-Source code is available on GitHub at https://github.com/Edair0/MorePerks
+# Requirements
+This mod now requires MCM: https://github.com/Crynano/Mod-Configuration-Menu
