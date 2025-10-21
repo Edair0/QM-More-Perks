@@ -11,6 +11,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.UI;
 using static HarmonyLib.Code;
 using static MGSC.BinaryPresetsMap;
 using static System.Net.Mime.MediaTypeNames;
@@ -19,149 +20,110 @@ namespace MorePerks
 {
     public class ModPatches
     {
+
+        // Patch to create slots for MercenaryClassScreen (screen used on missions to display character class)
         [HarmonyPatch(typeof(MercenaryClassScreen), nameof(MercenaryClassScreen.OnEnable))]
         public static class Patch_MercenaryClassScreen_OnEnable
         {
             public static void Prefix(MercenaryClassScreen __instance)
             {
-                if (__instance._perSlots.Length != 10) { __instance._perSlots = ScreenHelper.IncreaseSlots(__instance._perSlots, __instance._classBgIcon.transform); }
-                ScreenHelper.PositionSlots(__instance._perSlots);
+                if (__instance._perSlots.Length != 12) { __instance._perSlots = ScreenHelper.IncreaseSlots(__instance._perSlots, __instance._classBgIcon.transform); }
             }
+
             public static void Postfix(MercenaryClassScreen __instance)
             {
-                ScreenHelper.RefreshSlots(__instance._perSlots);
+                if (__instance._perSlots.Length == 12)  { ScreenHelper.RefreshSlots(__instance._perSlots); }
             }
         }
 
+        // Patch to create slots for SelectClassScreen (screen used on orbit to change character class)
         [HarmonyPatch(typeof(SelectClassScreen), nameof(SelectClassScreen.OnEnable))]
         public static class Patch_SelectClassScreen_OnEnable
         {
             public static void Prefix(SelectClassScreen __instance)
             {
-                if (__instance._perkSlots.Length != 10) { __instance._perkSlots = ScreenHelper.IncreaseSlots(__instance._perkSlots, __instance._classBgIcon.transform); }
-                ScreenHelper.PositionSlots(__instance._perkSlots);
+                if (__instance._perkSlots.Length != 12) { __instance._perkSlots = ScreenHelper.IncreaseSlots(__instance._perkSlots, __instance._classBgIcon.transform); }
             }
         }
 
-        [HarmonyPatch(typeof(SelectClassScreen), nameof(SelectClassScreen.PanelOnSelectClass))]
-        public static class Patch_SelectClassScreen_PanelOnSelectClass
-        {
-            public static void Postfix(SelectClassScreen __instance, MercenaryClassPanel arg1, string arg2)
-            {
-                if (!__instance._selectedClassId.Equals(__instance._merc.MercClassId)) { ScreenHelper.HideCustomSlots(__instance._perkSlots); }
-                else 
-                {
-                    ScreenHelper.RefreshSlots(__instance._perkSlots);
-                }
-            }
-        }
-
+        // Patch to handle displaying/hiding custom perk slots when changing class
         [HarmonyPatch(typeof(SelectClassScreen), nameof(SelectClassScreen.RefreshClassBlock))]
         public static class Patch_SelectClassScreen_RefreshClassBlock
         {
-            public static void Prefix(SelectClassScreen __instance, List<Perk> perks, MercenaryClassRecord record)
+            public static CommonButton RerollPerksButton;
+            public static GameKeyPanel RerollPerksButtonHotkey;
+            public static SelectClassScreen ScreenInstance;
+
+            public static void Postfix(SelectClassScreen __instance, List<Perk> perks, MercenaryClassRecord record)
             {
-                if (perks != null)
+                if (ScreenInstance == null) { ScreenInstance = __instance; }
+
+                if (RerollPerksButton == null) { RerollPerksButton = CreateClonedButton(__instance._selectClassButton); }
+
+                ScreenHelper.RefreshSlots(__instance._perkSlots);
+
+                bool canInteract = false;
+                if ((string.IsNullOrEmpty(__instance._selectedClassId) && !string.IsNullOrEmpty(__instance._merc.MercClassId)) || __instance._selectedClassId == __instance._merc.MercClassId) { canInteract = true; }
+
+                // This blocks synth if we don't have chip in cargo and FreeSynth is disabled
+                if (canInteract && !Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.FreeSynth))
                 {
-                    for (int i = 7; i < perks.Count; i++)
-                    {
-                        if (perks[i].PerkType == PerkType.Talent)
-                        {
-                            perks[i].PerkType = PerkType.Passive;
-                        }
-                    }
+                    List<ItemStorage> cargo = UI.Get<SpaceshipScreen>()._magnumCargo.ShipCargo;
+                    canInteract = cargo.Any(storage => storage != null && storage.ContainsItem("classUSB"));
                 }
+
+                RerollPerksButton.SetInteractable(canInteract);
             }
 
-            public static void Postfix(SelectClassScreen __instance)
+            private static CommonButton CreateClonedButton(CommonButton buttonToClone)
             {
-                if (__instance._perkSlots != null)
+                CommonButton result = UnityEngine.Object.Instantiate(buttonToClone, buttonToClone.transform.parent.transform);
+                result.transform.localPosition += new Vector3(0f, -16f, 0f);
+                result.ChangeLabel(ModLocalization.MutateButton.Key);
+                result.captionText.gameObject.transform.localPosition += new Vector3(-6f, 0f, 0f);
+                result.OnClick += MutatePerkClick;
+
+                Transform hotkeyTransform = result.gameObject.transform.Find("GameKeyPanel");
+                if (hotkeyTransform != null) { hotkeyTransform.localScale = new Vector3(0f, 0f, 0f); }
+
+                return result;
+            }
+
+            private static void MutatePerkClick(CommonButton arg1, int arg2)
+            {
+                UI.Chain<ConfirmDialogWindow>().Invoke(delegate (ConfirmDialogWindow v)
                 {
-                    for (int i = 7; i < 10; i++)
+                    v.Configure(new Action<ConfirmDialogWindow.Option>(ConfirmMutatePerkDialog), ModLocalization.MutateDialog.Key, true, null, ModLocalization.MutateConfirm.Key, ModLocalization.MutateReturn.Key);
+                }).Show(true);
+                return;
+            }
+            private static void ConfirmMutatePerkDialog(ConfirmDialogWindow.Option obj)
+            {
+                if (obj == ConfirmDialogWindow.Option.Yes)
+                {
+                    // Reroll perks
+                    PerkHelper.MutatePerks(ScreenInstance._merc.CreatureData.Perks, ScreenInstance._perkFactory);
+                    PerkHelper.RefreshMerc(ScreenInstance._merc);
+                    ScreenHelper.RefreshSlots(ScreenInstance._perkSlots);
+
+                    // Remove class chip from cargo
+                    List<ItemStorage> cargo = UI.Get<SpaceshipScreen>()._magnumCargo.ShipCargo;
+                    foreach (ItemStorage storage in cargo)
                     {
-                        if (__instance._perkSlots[i]._perk != null && __instance._perkSlots[i]._perk.PerkId.Contains("talent_"))
+                        if (storage.ContainsItem("classUSB"))
                         {
-                            __instance._perkSlots[i]._perk.PerkType = PerkType.Talent;
+                            storage.RemoveSpecificItem("classUSB", 1);
+                            break;
                         }
                     }
-                    ScreenHelper.RefreshSlots(__instance._perkSlots);
+                    UI.Back(false);
+                    // Refresh perk screen so we get to see changes without reopening the window
+                    //ScreenInstance.RefreshClassBlock(ScreenInstance._merc.CreatureData.Perks, Data.MercenaryClasses.GetRecord(ScreenInstance._merc.MercClassId, true));
                 }
             }
         }
 
-        public static class ScreenHelper
-        {
-            public static int CurrentAdditionalPerks = 0;
-
-            public static PerkSlot[] IncreaseSlots(PerkSlot[] currentSlots, Transform parent)
-            {
-                List<PerkSlot> newSlots = currentSlots.Take(7).ToList();
-                for (int i = 0; i < 3; i++)
-                {
-                    PerkSlot newPerkSlot = UnityEngine.Object.Instantiate(currentSlots[0], parent);
-                    newPerkSlot.transform.localScale = new Vector3(0.75f, 0.75f, 1f);
-                    newSlots.Add(newPerkSlot);
-                }
-                return newSlots.ToArray();
-            }
-
-            public static void PositionSlots(PerkSlot[] perkSlots)
-            {
-                int NewAdditionalPerks = Plugin.ConfigGeneral.ModData.GetConfigValue<int>(Keys.PerkAmount);
-
-                if (CurrentAdditionalPerks != NewAdditionalPerks) 
-                {
-                    if (NewAdditionalPerks == 0)
-                    {
-                        perkSlots[7].transform.localScale = new Vector3(0.75f, 0.75f, 0f);
-                        perkSlots[8].transform.localScale = new Vector3(0.75f, 0.75f, 0f);
-                        perkSlots[9].transform.localScale = new Vector3(0.75f, 0.75f, 0f);
-                    }
-                    if (NewAdditionalPerks == 1)
-                    {
-                        perkSlots[7].transform.localPosition = new Vector3(-46f, 0f, 0f);
-                    }
-                    if (NewAdditionalPerks == 2)
-                    {
-                        perkSlots[7].transform.localPosition = new Vector3(-35f, 2f, 0f);
-                        perkSlots[8].transform.localPosition = new Vector3(-57f, 2f, 0f);
-                    }
-                    if (NewAdditionalPerks == 3)
-                    {
-                        perkSlots[7].transform.localPosition = new Vector3(-46f, 0f, 0f);
-                        perkSlots[8].transform.localPosition = new Vector3(-66f, -13f, 0f);
-                        perkSlots[9].transform.localPosition = new Vector3(-26f, -13f, 0f);
-                    }
-                }
-            }
-
-            public static void RefreshSlots(PerkSlot[] perkSlots)
-            {
-                for (int i = 7; i < perkSlots.Length; i++)
-                {
-                    if (perkSlots[i]._perk == null)
-                    {
-                        perkSlots[i].transform.localScale = new Vector3(0.75f, 0.75f, 0f);
-                        perkSlots[i]._cooldown.gameObject.SetActive(false);
-                    }
-                    else
-                    {
-                        perkSlots[i].transform.localScale = new Vector3(0.75f, 0.75f, 1f);
-                        perkSlots[i]._cooldown.gameObject.SetActive(true);
-                    }
-                }
-            }
-
-            public static void HideCustomSlots(PerkSlot[] perkSlots)
-            {
-                for (int i = 7; i < perkSlots.Length; i++)
-                {
-                    perkSlots[i].transform.localScale = new Vector3(0.75f, 0.75f, 0f);
-                }
-            }
-        }
-
-
+        // Patch to store PerkFactory instance for later use when adding custom perks
         [HarmonyPatch(typeof(MercenarySystem), nameof(MercenarySystem.ApplyClassForMercenary))]
         public static class Patch_MercenarySystem_ApplyClassForMercenary
         {
@@ -169,75 +131,65 @@ namespace MorePerks
 
             public static void Prefix(PerkFactory perkFactory)
             {
-                if (StoredPerkFactory == null)
-                {
-                    StoredPerkFactory = perkFactory;
-                }
+                if (StoredPerkFactory == null) { StoredPerkFactory = perkFactory; }
             }
         }
 
+        // Patch to add custom perks when setting mercenary class
         [HarmonyPatch(typeof(Mercenary), nameof(Mercenary.SetMercClass))]
         public static class Patch_Mercenary_SetMercClass
         {
             public static void Prefix(Mercenary __instance, List<Perk> perks)
             {
-                HashSet<string> PerksToAdd = new HashSet<string>();
+                if (perks == null) { return; }
+
+                // We add custom perks to existing list
+                foreach (Perk perk in __instance.CreatureData.Perks)
+                {
+                    if (perk.HasParameter("MorePerks_CustomPerk")) { perks.Add(perk); }
+                }
+
+                // Exisitng perk HashSet for fast checks, gets updated automatically if passed to PerkHelper functions
                 HashSet<string> ExistingPerks = new HashSet<string>(perks.Select(p => p.PerkId));
 
-                int AdditionalPerks = Plugin.ConfigGeneral.ModData.GetConfigValue<int>(Keys.PerkAmount);
-                int[] PerkIDs = { 
-                    Plugin.ConfigGeneral.ModData.GetDropdownValue<int>(Keys.FirstPerk), 
-                    Plugin.ConfigGeneral.ModData.GetDropdownValue<int>(Keys.SecondPerk), 
-                    Plugin.ConfigGeneral.ModData.GetDropdownValue<int>(Keys.ThirdPerk) 
-                };
+                // We keep adding perks until enough are generated
+                int perksLeftToAdd = Plugin.ConfigGeneral.ModData.GetConfigValue<int>(Keys.PerkAmount) - perks.Count(perk => perk.HasParameter("MorePerks_CustomPerk"));
+                while (perksLeftToAdd > 0)
+                {
+                    perks.Add(PerkHelper.GetRandomCustomPerk(Patch_MercenarySystem_ApplyClassForMercenary.StoredPerkFactory, ExistingPerks, true));
+                    perksLeftToAdd--;
+                }        
 
-                for(int i = 0; i < AdditionalPerks; i++)
-                {
-                    if (PerkIDs[i] == 0)
-                    {
-                        AddRandomPerkID(PerksToAdd, ExistingPerks);
-                    }
-                    else
-                    {
-                        AddPerkID(Plugin.ConfigGeneral.AllowedPerks[PerkIDs[i] - 1], PerksToAdd, ExistingPerks);            
-                    }
-                }
-                Plugin.Logger.Log($"!!!Adding perks to mercenary!!!");
-                foreach (string newPerk in PerksToAdd)
-                {
-                    Plugin.Logger.Log($"Adding perk {newPerk} to mercenary.");;
-                    Perk perk = Patch_MercenarySystem_ApplyClassForMercenary.StoredPerkFactory.CreatePerk(Data.Perks.GetRecord(newPerk, true));
-                    perks.Add(perk);
-                }
+                // If character used to have extra slot talent but doens't have it anymore then its need to be removed manually
+                if (!ExistingPerks.Contains("talent_weapon_slot")) { __instance.CreatureData.Inventory.AdditionalSlot.Resize(0, 0); }
             }
-            public static void AddPerkID(string PerkID, HashSet<string> PerksToAdd, HashSet<string> ExistingPerks)
+        }
+
+
+        // Patch to handle level up of custom perks. Without this MorePerks_CustomPerk is not keep on levelup
+        [HarmonyPatch(typeof(PerkSystem), nameof(PerkSystem.DoLevelUpPerks))]
+        public static class Patch_PerkSystem_DoLevelUpPerks
+        {
+            private static Dictionary<string, PerkParameter> savedCustomParam = new Dictionary<string, PerkParameter>();
+
+            public static void Prefix(List<Perk> perksToLevelUp, Mercenary mercenary, PerkFactory perkFactory)
             {
-                if (!ExistingPerks.Contains(PerkID) && !PerksToAdd.Contains(PerkID))
+                savedCustomParam.Clear();
+                foreach(Perk perk in perksToLevelUp)
                 {
-                    PerksToAdd.Add(PerkID);
-                }
-                else
-                {
-                    AddRandomPerkID(PerksToAdd, ExistingPerks);
+                    if (perk.HasParameter("MorePerks_CustomPerk")) { savedCustomParam[perk.NextPerkId] = perk.Get("MorePerks_CustomPerk"); }
                 }
             }
 
-            public static void AddRandomPerkID(HashSet<string> PerksToAdd, HashSet<string> ExistingPerks)
+            public static void Postfix(List<Perk> perksToLevelUp, Mercenary mercenary, PerkFactory perkFactory)
             {
-                for (int i = 0; i < 100; i++)
+                foreach (KeyValuePair<string, PerkParameter> kvp in savedCustomParam)
                 {
-                    string randomPerkID = Plugin.ConfigGeneral.AllowedPerks[UnityEngine.Random.Range(0, Plugin.ConfigGeneral.AllowedPerks.Count)];
-                    if (!ExistingPerks.Contains(randomPerkID) && !PerksToAdd.Contains(randomPerkID))
+                    foreach (Perk perk in mercenary.CreatureData.Perks)
                     {
-
-                        PerksToAdd.Add(randomPerkID);
-                        break;
+                        if(kvp.Key == perk.PerkId) { perk.Parameters.Add(kvp.Value); }
                     }
-                    if(i == 99)
-                    {
-                        Plugin.Logger.LogWarning("Could not find a unique perk to add after 100 attempts.");
-                    }
-                }       
+                }
             }
         }
     }

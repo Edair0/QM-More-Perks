@@ -1,7 +1,9 @@
 {
   "UniqueModName": "Edair0_MorePerks",
-  "Assemblies": [
-    "MorePerks.dll"
-  ],
-  "Dependencies": []
+  "Assemblies": [ "MorePerks.dll" ],
+  "Dependencies": [ "Crynano_ModConfigMenu" ],
+  "SteamTags": [
+    "0.9.7",
+    "Gameplay Tweaks"
+  ]
 }

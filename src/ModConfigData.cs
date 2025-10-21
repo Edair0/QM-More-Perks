@@ -33,15 +33,21 @@ namespace MorePerks
             this.LoadConfig();
         }
 
-        public void RegisterModConfigData(string menuName, string desc)
+        public void RegisterModConfigData(string menuName)
         {
-            LocalizationHelper.AddKeyToAllDictionaries($"{Plugin.ModAssemblyName}.{menuName}.key", desc);
-            ModConfigMenuAPI.RegisterModConfig($"{Plugin.ModAssemblyName}.{menuName}.key", ConfigValues, OnSave);
+            ModConfigMenuAPI.RegisterModConfig(menuName, ConfigValues, OnSave);
         }
 
         public void AddConfigHeader(string headerKey, string locKey = null)
         {
             GetKeyEnsureLocalization(headerKey, KeyType.Header, locKey);
+        }
+
+        public void AddConfigValue(string headerKey, string valueKey, string stringKey)
+        {
+            string stringKeyLoc = GetKeyEnsureLocalization(stringKey, KeyType.Description, valueKey);
+            StringConfig result = new StringConfig(valueKey, stringKeyLoc, headerKey);
+            ConfigValues.Add(result);
         }
 
         public void AddConfigValue(string headerKey, string valueKey, object defaultValue, string labelKey, string tooltipKey)

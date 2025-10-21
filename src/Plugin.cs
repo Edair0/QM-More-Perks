@@ -27,9 +27,10 @@ namespace MorePerks
         public static void AfterConfig(IModContext context)
         {
 
-            ConfigGeneral = new ModConfigGeneral("general", ConfigPath);
+            ConfigGeneral = new ModConfigGeneral("QM More Perks", ConfigPath);
             Harmony harmony = new Harmony("Edair0_" + ModAssemblyName);
 
+            ModLocalization.Initialize();
             new Harmony("Edair0_" + ModAssemblyName).PatchAll();
         }
 
