@@ -121,8 +121,8 @@ namespace MorePerks
                 "Additional perks are generated when a class is assigned to a clone for the first time.\n\n" +
                 "Additional perks persist across class changes.\n\n" +
                 "Additional perks can be rerolled only by 'mutating' the clone on the class select screen (or dying).\n\n" +
-                "By default, each mutation costs 1 Class Chip, which is chosen randomly from the ship's cargo.\n\n" +
-                "Each Class Chip adds 10 uses to Mutation Chamber.\n\n" +
+                "Mutation Chamber costs 1 Class Chip to charge, increasing charges by 10.\n\n" +
+                "Class Chip is chosen randomly from the ship's cargo.\n\n" +
                 "Perks set to anything other than random are guaranteed to generate when choosing a class and mutating perks.\n\n");
 
             this.ModData.RegisterModConfigData(ModName);
