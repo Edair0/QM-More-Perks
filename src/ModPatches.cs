@@ -59,12 +59,12 @@ namespace MorePerks
             public static GameKeyPanel RerollPerksButtonHotkey;
             public static SelectClassScreen ScreenInstance;
 
-            public static void Postfix(SelectClassScreen __instance, List<Perk> perks, MercenaryClassRecord record)
+            public static void Postfix(SelectClassScreen __instance)
             {
 
                 if (ScreenInstance == null) { ScreenInstance = __instance; }
-
                 if (RerollPerksButton == null) { RerollPerksButton = CreateClonedButton(__instance._selectClassButton); }
+                CleanClonedButton(RerollPerksButton);
 
                 ScreenHelper.RefreshSlots(__instance._perkSlots);
 
@@ -103,6 +103,25 @@ namespace MorePerks
                 result.ChangeLabel(ModLocalization.MutateButtonCharge.Key);
                 result.OnClick += MutatePerkClick;
                 return result;
+            }
+
+            // Cloned buttons like to freak out, don't know why. Some gameobjects inside button sometimes gets duplicated
+            private static void CleanClonedButton(CommonButton buttonToClean)
+            {
+                Transform parent = buttonToClean.gameObject.transform;
+                List<GameObject> gameKeyPanels = new List<GameObject>();
+
+                // Gets all GameKeyPanels
+                foreach (Transform child in parent)
+                {
+                    if (child.name == "GameKeyPanel") { gameKeyPanels.Add(child.gameObject); }
+                }
+
+                // Delete all but one.
+                for (int i = 1; i < gameKeyPanels.Count; i++)
+                {
+                    GameObject.Destroy(gameKeyPanels[i]);
+                }
             }
 
             private static void MutatePerkClick(CommonButton arg1, int arg2)
@@ -247,7 +266,7 @@ namespace MorePerks
         {
             private static Dictionary<string, PerkParameter> savedCustomParam = new Dictionary<string, PerkParameter>();
 
-            public static void Prefix(List<Perk> perksToLevelUp, Mercenary mercenary, PerkFactory perkFactory)
+            public static void Prefix(List<Perk> perksToLevelUp)
             {
                 savedCustomParam.Clear();
                 foreach(Perk perk in perksToLevelUp)
@@ -256,7 +275,7 @@ namespace MorePerks
                 }
             }
 
-            public static void Postfix(List<Perk> perksToLevelUp, Mercenary mercenary, PerkFactory perkFactory)
+            public static void Postfix(Mercenary mercenary)
             {
                 foreach (KeyValuePair<string, PerkParameter> kvp in savedCustomParam)
                 {
