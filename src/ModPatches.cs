@@ -1,6 +1,7 @@
 ﻿using HarmonyLib;
 using MGSC;
 using ModConfigMenu.Services;
+using MorePerks.Helper;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -41,6 +42,11 @@ namespace MorePerks
             }
         }
 
+
+        public static CommonButton RerollPerksButton { get; set; }
+        public static SelectClassScreen ScreenInstance { get; set; }
+        public static PerkFactory StoredPerkFactory { get; set; }
+
         // Patch to create slots for SelectClassScreen (screen used on orbit to change character class)
         [HarmonyPatch(typeof(SelectClassScreen), nameof(SelectClassScreen.OnEnable))]
         public static class Patch_SelectClassScreen_OnEnable
@@ -49,54 +55,26 @@ namespace MorePerks
             {
                 if (__instance._perkSlots.Length != 12) { __instance._perkSlots = ScreenHelper.IncreaseSlots(__instance._perkSlots, __instance._classBgIcon.transform); }
             }
-        }
-
-        // Patch to handle displaying/hiding custom perk slots when changing class
-        [HarmonyPatch(typeof(SelectClassScreen), nameof(SelectClassScreen.RefreshClassBlock))]
-        public static class Patch_SelectClassScreen_RefreshClassBlock
-        {
-            public static CommonButton RerollPerksButton;
-            public static GameKeyPanel RerollPerksButtonHotkey;
-            public static SelectClassScreen ScreenInstance;
 
             public static void Postfix(SelectClassScreen __instance)
             {
-
                 if (ScreenInstance == null) { ScreenInstance = __instance; }
                 if (RerollPerksButton == null) { RerollPerksButton = CreateClonedButton(__instance._selectClassButton); }
-                CleanClonedButton(RerollPerksButton);
 
-                ScreenHelper.RefreshSlots(__instance._perkSlots);
+                //ScreenHelper.RefreshSlots(__instance._perkSlots);
+                ButtonHelper.CleanClonedButton(RerollPerksButton);
 
-                bool canInteract = false;
-                if ((string.IsNullOrEmpty(__instance._selectedClassId) && !string.IsNullOrEmpty(__instance._merc.MercClassId)) || __instance._selectedClassId == __instance._merc.MercClassId) 
+                if (string.IsNullOrEmpty(__instance._selectedClassId) && !string.IsNullOrEmpty(__instance._merc.MercClassId))
                 {
-                    // If FreeMutation is enabled then we just allow button use
-                    if (Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.FreeMutation)) 
-                    { 
-                        canInteract = true;
-                        RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonFree.Key);
-                    }
-                    
-                    // If we have some uses left then we also allow mutation
-                    else if (Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) > 0) 
-                    { 
-                        canInteract = true;
-                        RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonUses[Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) - 1].Key);
-                    }         
-                    
-                    // If we don't have then we check if there is chip in cargo
-                    else
-                    {
-                        List<ItemStorage> cargo = UI.Get<SpaceshipScreen>()._magnumCargo.ShipCargo;
-                        canInteract = cargo.Any(storage => storage != null && storage.ContainsItem("classUSB"));
-                        RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonCharge.Key);
-                    }
+                    ButtonHelper.UpdateMutateButtonStatus(RerollPerksButton);
                 }
-                RerollPerksButton.SetInteractable(canInteract);
+                else
+                {
+                    RerollPerksButton.gameObject.SetActive(false);
+                }
             }
 
-            private static CommonButton CreateClonedButton(CommonButton buttonToClone)
+            public static CommonButton CreateClonedButton(CommonButton buttonToClone)
             {
                 CommonButton result = UnityEngine.Object.Instantiate(buttonToClone, buttonToClone.transform.parent.transform);
                 result.transform.localPosition += new Vector3(0f, -16f, 0f);
@@ -105,26 +83,7 @@ namespace MorePerks
                 return result;
             }
 
-            // Cloned buttons like to freak out, don't know why. Some gameobjects inside button sometimes gets duplicated
-            private static void CleanClonedButton(CommonButton buttonToClean)
-            {
-                Transform parent = buttonToClean.gameObject.transform;
-                List<GameObject> gameKeyPanels = new List<GameObject>();
-
-                // Gets all GameKeyPanels
-                foreach (Transform child in parent)
-                {
-                    if (child.name == "GameKeyPanel") { gameKeyPanels.Add(child.gameObject); }
-                }
-
-                // Delete all but one.
-                for (int i = 1; i < gameKeyPanels.Count; i++)
-                {
-                    GameObject.Destroy(gameKeyPanels[i]);
-                }
-            }
-
-            private static void MutatePerkClick(CommonButton arg1, int arg2)
+            public static void MutatePerkClick(CommonButton arg1, int arg2)
             {
                 if (Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.FreeMutation))
                 {
@@ -133,7 +92,7 @@ namespace MorePerks
                         v.Configure(new Action<ConfirmDialogWindow.Option>(ConfirmMutateFreePerkDialog), ModLocalization.MutateDialogUse.Key, true, null, ModLocalization.MutateConfirm.Key, ModLocalization.MutateReturn.Key);
                     }).Show(true);
                 }
-                else 
+                else
                 {
                     if (Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) > 0)
                     {
@@ -153,7 +112,7 @@ namespace MorePerks
                 return;
             }
 
-            private static void ConfirmMutateFreePerkDialog(ConfirmDialogWindow.Option obj)
+            public static void ConfirmMutateFreePerkDialog(ConfirmDialogWindow.Option obj)
             {
                 if (obj == ConfirmDialogWindow.Option.Yes)
                 {
@@ -180,12 +139,11 @@ namespace MorePerks
                         {
                             // Remove first Class Chip
                             storage.RemoveSpecificItem("classUSB", 1);
+                            // Increase usages
+                            usages = 10;
                             break;
                         }
                     }
-                    // Increase usages
-                    usages = 10;
-
                     // Save and go back
                     Plugin.Save.SetCurrentSlotValue<int>(SaveVars.MutateUsesLeft, usages);
                     UI.Back(false);
@@ -212,16 +170,35 @@ namespace MorePerks
             }
         }
 
+        // Patch to handle displaying/hiding custom perk slots when changing class
+        [HarmonyPatch(typeof(SelectClassScreen), nameof(SelectClassScreen.RefreshClassBlock))]
+        public static class Patch_SelectClassScreen_RefreshClassBlock
+        {
+            public static void Postfix(SelectClassScreen __instance)
+            {
+                if (ScreenInstance == null) { ScreenInstance = __instance; }
+                if (RerollPerksButton == null) { RerollPerksButton = Patch_SelectClassScreen_OnEnable.CreateClonedButton(__instance._selectClassButton); }
+
+                ScreenHelper.RefreshSlots(__instance._perkSlots);
+                ButtonHelper.CleanClonedButton(RerollPerksButton);
+               
+                if (__instance._selectedClassId == __instance._merc.MercClassId && !string.IsNullOrEmpty(__instance._selectedClassId))
+                {
+                    ButtonHelper.UpdateMutateButtonStatus(RerollPerksButton);
+                }
+                else
+                {
+                    RerollPerksButton.gameObject.SetActive(false);
+                }
+            }
+
+        }
+
         // Patch to store PerkFactory instance for later use when adding custom perks
         [HarmonyPatch(typeof(MercenarySystem), nameof(MercenarySystem.ApplyClassForMercenary))]
         public static class Patch_MercenarySystem_ApplyClassForMercenary
         {
-            public static PerkFactory StoredPerkFactory { get; set; }
-
-            public static void Prefix(PerkFactory perkFactory)
-            {
-                if (StoredPerkFactory == null) { StoredPerkFactory = perkFactory; }
-            }
+            public static void Prefix(PerkFactory perkFactory) { if (StoredPerkFactory == null) { StoredPerkFactory = perkFactory; } }
         }
 
         // Patch to add custom perks when setting mercenary class
@@ -250,7 +227,7 @@ namespace MorePerks
                     int perksLeftToAdd = Plugin.ConfigGeneral.ModData.GetConfigValue<int>(Keys.PerkAmount) - perks.Count(perk => perk.HasParameter("MorePerks_CustomPerk"));
                     while (perksLeftToAdd > 0)
                     {
-                        perks.Add(PerkHelper.GetRandomCustomPerk(Patch_MercenarySystem_ApplyClassForMercenary.StoredPerkFactory, ExistingPerks, true));
+                        perks.Add(PerkHelper.GetRandomCustomPerk(StoredPerkFactory, ExistingPerks, true));
                         perksLeftToAdd--;
                     }
                 }

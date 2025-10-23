@@ -36,7 +36,7 @@ namespace MorePerks
             LocalizationHelper.AddKeyToAllDictionaries(MutateButtonCharge.Key, MutateButtonCharge.Data);
             for (int i = 1; i <= 10; i++)
             {
-                LocalizationEntry localizationEntry = new LocalizationEntry($"moreperks.mutate.button.{i}", $"<size=8.5>Mutate Perks {i}/10</size>");
+                LocalizationEntry localizationEntry = new LocalizationEntry($"moreperks.mutate.button.{i}", $"<size=8.2>Mutate Perks {i}/10</size>");
                 MutateButtonUses.Add(localizationEntry);
                 LocalizationHelper.AddKeyToAllDictionaries(localizationEntry.Key, localizationEntry.Data);
             }

@@ -86,7 +86,7 @@
 		
 	<Target Name="SteamWorkshopDeploy" Condition="'$(SteamId)'!=''" AfterTargets="PostBuildEvent">
 		<ItemGroup>
-			<BuildSource Include="$(TargetDir)/*.*" Exclude="$(TargetDir)\MCM.dll"/>
+			<BuildSource Include="$(TargetDir)/*.*" Exclude="$(TargetDir)\MCM.dll" />
 		</ItemGroup>
 		<MakeDir Directories="$(WorkshopPath)" ContinueOnError="true" />
 		<Copy SourceFiles="@(BuildSource)" DestinationFolder="$(WorkshopPath)" />
