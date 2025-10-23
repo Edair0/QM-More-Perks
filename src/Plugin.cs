@@ -17,20 +17,23 @@ namespace MorePerks
         public static string ModAssemblyName => Assembly.GetExecutingAssembly().GetName().Name;
         private static string ModPersistenceFolder => Path.Combine($"{Application.persistentDataPath}/../Quasimorph_ModConfigs", "Edair0_MorePerks");
         private static string ConfigPath => Path.Combine(ModPersistenceFolder, "config.txt");
+        private static string SavePath => Path.Combine(ModPersistenceFolder, "savedata.json");
 
         public static Logger Logger { get; private set; } = new Logger();
 
         public static ModConfigGeneral ConfigGeneral { get; set; }
+        public static ModSave Save { get; set; }
 
 
         [Hook(ModHookType.AfterConfigsLoaded)]
         public static void AfterConfig(IModContext context)
         {
+            ModLocalization.Initialize();
 
             ConfigGeneral = new ModConfigGeneral("QM More Perks", ConfigPath);
-            Harmony harmony = new Harmony("Edair0_" + ModAssemblyName);
+            Save = new ModSave(SavePath);
 
-            ModLocalization.Initialize();
+            Harmony harmony = new Harmony("Edair0_" + ModAssemblyName);
             new Harmony("Edair0_" + ModAssemblyName).PatchAll();
         }
 

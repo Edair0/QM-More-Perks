@@ -98,10 +98,10 @@ namespace MorePerks
                     Plugin.ConfigGeneral.AllowedPerks[Plugin.ConfigGeneral.ModData.GetDropdownValue<int>(Keys.Perk5)]
                 }.Where(perkID => perkID != "moreperks_random").ToList();
 
-                // Quick check to see if perks from options are already added, if not we just return random perk ID.
+                // Quick check to see if perks from options of any rank are already added, if not we just return random perk ID.
                 foreach (string perkID in PerksToForce)
                 {
-                    if (!ExistingPerks.Contains(perkID))
+                    if (!ContainsAnyRank(ExistingPerks, perkID))
                     {
                         ExistingPerks.Add(perkID);
                         return perkID;
@@ -114,7 +114,7 @@ namespace MorePerks
             for (int i = 0; i < 100; i++)
             {
                 string randomPerkID = Plugin.ConfigGeneral.AllowedPerks[UnityEngine.Random.Range(1, Plugin.ConfigGeneral.AllowedPerks.Count)]; // first perk is not a real perk so we start from 1
-                if (!ExistingPerks.Contains(randomPerkID))
+                if (!ContainsAnyRank(ExistingPerks, randomPerkID))
                 {
                     ExistingPerks.Add(randomPerkID);
                     return randomPerkID;
@@ -136,7 +136,7 @@ namespace MorePerks
             starvation.Reinitialize(starvation.MaxLevel);
         }
 
-        public static void MutatePerks(List<Perk> currentPerks, PerkFactory perkFactory)
+        public static void MutatePerks(Mercenary merc, List<Perk> currentPerks, PerkFactory perkFactory)
         {
             // Some ugly LINQ stuff to gather neccessary data for perk replacement, we need to know where are located our custom perks to replace them
             List<int> customPerkIndices = currentPerks.Select((perk, index) => new { perk, index }).Where(x => x.perk.HasParameter("MorePerks_CustomPerk")).Select(x => x.index).ToList();
@@ -174,6 +174,30 @@ namespace MorePerks
             {
                 currentPerks.Add(PerkHelper.GetRandomCustomPerk(perkFactory, ExisitngPerks, true));
             }
+
+            // If character used to have extra slot talent but doens't have it anymore then its need to be removed manually
+            if (!ExisitngPerks.Contains("talent_weapon_slot")) { merc.CreatureData.Inventory.AdditionalSlot.Resize(0, 0); }
+        }
+
+        public static HashSet<string> GetAllPerkRanks(string perkID)
+        {
+            // If it's talent then just return it
+            if (perkID.StartsWith("talent_")) { return new HashSet<string> { perkID }; }
+
+            // If it's normal perk then we just create all variants to a list
+            string basePerk = perkID.Replace("_basic", "");
+            return new HashSet<string>
+            {
+                basePerk + "_basic",
+                basePerk + "_advanced",
+                basePerk + "_master",
+                basePerk + "_legend"
+            };
+        }
+
+        public static bool ContainsAnyRank(HashSet<string> existingPerks, string perkID)
+        {
+            return GetAllPerkRanks(perkID).Any(rankID => existingPerks.Contains(rankID));
         }
     }
 }

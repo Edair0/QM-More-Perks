@@ -20,6 +20,11 @@ namespace MorePerks
 {
     public class ModPatches
     {
+        public static class SaveVars
+        {
+            public static string MutateUsesLeft = "MutateUsesLeft";
+        }
+
 
         // Patch to create slots for MercenaryClassScreen (screen used on missions to display character class)
         [HarmonyPatch(typeof(MercenaryClassScreen), nameof(MercenaryClassScreen.OnEnable))]
@@ -56,6 +61,7 @@ namespace MorePerks
 
             public static void Postfix(SelectClassScreen __instance, List<Perk> perks, MercenaryClassRecord record)
             {
+
                 if (ScreenInstance == null) { ScreenInstance = __instance; }
 
                 if (RerollPerksButton == null) { RerollPerksButton = CreateClonedButton(__instance._selectClassButton); }
@@ -63,15 +69,30 @@ namespace MorePerks
                 ScreenHelper.RefreshSlots(__instance._perkSlots);
 
                 bool canInteract = false;
-                if ((string.IsNullOrEmpty(__instance._selectedClassId) && !string.IsNullOrEmpty(__instance._merc.MercClassId)) || __instance._selectedClassId == __instance._merc.MercClassId) { canInteract = true; }
-
-                // This blocks synth if we don't have chip in cargo and FreeSynth is disabled
-                if (canInteract && !Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.FreeSynth))
+                if ((string.IsNullOrEmpty(__instance._selectedClassId) && !string.IsNullOrEmpty(__instance._merc.MercClassId)) || __instance._selectedClassId == __instance._merc.MercClassId) 
                 {
-                    List<ItemStorage> cargo = UI.Get<SpaceshipScreen>()._magnumCargo.ShipCargo;
-                    canInteract = cargo.Any(storage => storage != null && storage.ContainsItem("classUSB"));
+                    // If FreeMutation is enabled then we just allow button use
+                    if (Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.FreeMutation)) 
+                    { 
+                        canInteract = true;
+                        RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonFree.Key);
+                    }
+                    
+                    // If we have some uses left then we also allow mutation
+                    else if (Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) > 0) 
+                    { 
+                        canInteract = true;
+                        RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonUses[Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) - 1].Key);
+                    }         
+                    
+                    // If we don't have then we check if there is chip in cargo
+                    else
+                    {
+                        List<ItemStorage> cargo = UI.Get<SpaceshipScreen>()._magnumCargo.ShipCargo;
+                        canInteract = cargo.Any(storage => storage != null && storage.ContainsItem("classUSB"));
+                        RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonCharge.Key);
+                    }
                 }
-
                 RerollPerksButton.SetInteractable(canInteract);
             }
 
@@ -79,46 +100,95 @@ namespace MorePerks
             {
                 CommonButton result = UnityEngine.Object.Instantiate(buttonToClone, buttonToClone.transform.parent.transform);
                 result.transform.localPosition += new Vector3(0f, -16f, 0f);
-                result.ChangeLabel(ModLocalization.MutateButton.Key);
-                result.captionText.gameObject.transform.localPosition += new Vector3(-6f, 0f, 0f);
+                result.ChangeLabel(ModLocalization.MutateButtonCharge.Key);
                 result.OnClick += MutatePerkClick;
-
-                Transform hotkeyTransform = result.gameObject.transform.Find("GameKeyPanel");
-                if (hotkeyTransform != null) { hotkeyTransform.localScale = new Vector3(0f, 0f, 0f); }
-
                 return result;
             }
 
             private static void MutatePerkClick(CommonButton arg1, int arg2)
             {
-                UI.Chain<ConfirmDialogWindow>().Invoke(delegate (ConfirmDialogWindow v)
+                if (Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.FreeMutation))
                 {
-                    v.Configure(new Action<ConfirmDialogWindow.Option>(ConfirmMutatePerkDialog), ModLocalization.MutateDialog.Key, true, null, ModLocalization.MutateConfirm.Key, ModLocalization.MutateReturn.Key);
-                }).Show(true);
+                    UI.Chain<ConfirmDialogWindow>().Invoke(delegate (ConfirmDialogWindow v)
+                    {
+                        v.Configure(new Action<ConfirmDialogWindow.Option>(ConfirmMutateFreePerkDialog), ModLocalization.MutateDialogUse.Key, true, null, ModLocalization.MutateConfirm.Key, ModLocalization.MutateReturn.Key);
+                    }).Show(true);
+                }
+                else 
+                {
+                    if (Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) > 0)
+                    {
+                        UI.Chain<ConfirmDialogWindow>().Invoke(delegate (ConfirmDialogWindow v)
+                        {
+                            v.Configure(new Action<ConfirmDialogWindow.Option>(ConfirmMutatePerkDialog), ModLocalization.MutateDialogUse.Key, true, null, ModLocalization.MutateConfirm.Key, ModLocalization.MutateReturn.Key);
+                        }).Show(true);
+                    }
+                    else
+                    {
+                        UI.Chain<ConfirmDialogWindow>().Invoke(delegate (ConfirmDialogWindow v)
+                        {
+                            v.Configure(new Action<ConfirmDialogWindow.Option>(ChargeMutateDeviceDialog), ModLocalization.MutateDialogCharge.Key, true, null, ModLocalization.MutateConfirm.Key, ModLocalization.MutateReturn.Key);
+                        }).Show(true);
+                    }
+                }
                 return;
             }
-            private static void ConfirmMutatePerkDialog(ConfirmDialogWindow.Option obj)
+
+            private static void ConfirmMutateFreePerkDialog(ConfirmDialogWindow.Option obj)
             {
                 if (obj == ConfirmDialogWindow.Option.Yes)
                 {
-                    // Reroll perks
-                    PerkHelper.MutatePerks(ScreenInstance._merc.CreatureData.Perks, ScreenInstance._perkFactory);
+                    // Reroll perks and go back
+                    PerkHelper.MutatePerks(ScreenInstance._merc, ScreenInstance._merc.CreatureData.Perks, ScreenInstance._perkFactory);
                     PerkHelper.RefreshMerc(ScreenInstance._merc);
                     ScreenHelper.RefreshSlots(ScreenInstance._perkSlots);
+                    UI.Back(false);
+                }
+            }
 
-                    // Remove class chip from cargo
+            private static void ChargeMutateDeviceDialog(ConfirmDialogWindow.Option obj)
+            {
+                if (obj == ConfirmDialogWindow.Option.Yes)
+                {
+                    // Get current uses
+                    int usages = Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft);
+
+                    // Loop cargo
                     List<ItemStorage> cargo = UI.Get<SpaceshipScreen>()._magnumCargo.ShipCargo;
                     foreach (ItemStorage storage in cargo)
                     {
                         if (storage.ContainsItem("classUSB"))
                         {
+                            // Remove first Class Chip
                             storage.RemoveSpecificItem("classUSB", 1);
                             break;
                         }
                     }
+                    // Increase usages
+                    usages = 10;
+
+                    // Save and go back
+                    Plugin.Save.SetCurrentSlotValue<int>(SaveVars.MutateUsesLeft, usages);
                     UI.Back(false);
-                    // Refresh perk screen so we get to see changes without reopening the window
-                    //ScreenInstance.RefreshClassBlock(ScreenInstance._merc.CreatureData.Perks, Data.MercenaryClasses.GetRecord(ScreenInstance._merc.MercClassId, true));
+                }
+            }
+
+            private static void ConfirmMutatePerkDialog(ConfirmDialogWindow.Option obj)
+            {
+                if (obj == ConfirmDialogWindow.Option.Yes)
+                {
+                    // Reroll perks
+                    PerkHelper.MutatePerks(ScreenInstance._merc, ScreenInstance._merc.CreatureData.Perks, ScreenInstance._perkFactory);
+                    PerkHelper.RefreshMerc(ScreenInstance._merc);
+                    ScreenHelper.RefreshSlots(ScreenInstance._perkSlots);
+
+                    // Decrease uses
+                    int usages = Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft);
+                    if (usages > 0) { usages--; }
+                    Plugin.Save.SetCurrentSlotValue<int>(SaveVars.MutateUsesLeft, usages);
+
+                    // Return to previous screen
+                    UI.Back(false);
                 }
             }
         }
@@ -143,28 +213,33 @@ namespace MorePerks
             {
                 if (perks == null) { return; }
 
-                // We add custom perks to existing list
+                // We need to keep perks when changing classes. Doesn't work when clone dies as clone is deleted.
                 foreach (Perk perk in __instance.CreatureData.Perks)
                 {
-                    if (perk.HasParameter("MorePerks_CustomPerk")) { perks.Add(perk); }
+                    if (perk.HasParameter("MorePerks_CustomPerk") && !perks.Any(p => p.PerkId == perk.PerkId))
+                    {
+                        perks.Add(perk);
+                    }
                 }
 
                 // Exisitng perk HashSet for fast checks, gets updated automatically if passed to PerkHelper functions
                 HashSet<string> ExistingPerks = new HashSet<string>(perks.Select(p => p.PerkId));
 
-                // We keep adding perks until enough are generated
-                int perksLeftToAdd = Plugin.ConfigGeneral.ModData.GetConfigValue<int>(Keys.PerkAmount) - perks.Count(perk => perk.HasParameter("MorePerks_CustomPerk"));
-                while (perksLeftToAdd > 0)
+                if (Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.StartPerks))
                 {
-                    perks.Add(PerkHelper.GetRandomCustomPerk(Patch_MercenarySystem_ApplyClassForMercenary.StoredPerkFactory, ExistingPerks, true));
-                    perksLeftToAdd--;
-                }        
+                    // We keep adding perks until enough are generated
+                    int perksLeftToAdd = Plugin.ConfigGeneral.ModData.GetConfigValue<int>(Keys.PerkAmount) - perks.Count(perk => perk.HasParameter("MorePerks_CustomPerk"));
+                    while (perksLeftToAdd > 0)
+                    {
+                        perks.Add(PerkHelper.GetRandomCustomPerk(Patch_MercenarySystem_ApplyClassForMercenary.StoredPerkFactory, ExistingPerks, true));
+                        perksLeftToAdd--;
+                    }
+                }
 
                 // If character used to have extra slot talent but doens't have it anymore then its need to be removed manually
                 if (!ExistingPerks.Contains("talent_weapon_slot")) { __instance.CreatureData.Inventory.AdditionalSlot.Resize(0, 0); }
             }
         }
-
 
         // Patch to handle level up of custom perks. Without this MorePerks_CustomPerk is not keep on levelup
         [HarmonyPatch(typeof(PerkSystem), nameof(PerkSystem.DoLevelUpPerks))]

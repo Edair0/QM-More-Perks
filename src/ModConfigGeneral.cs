@@ -19,7 +19,8 @@ namespace MorePerks
     {
         public const string HeaderGeneral = "general";
         public const string PerkAmount = "Perk_Amount";
-        public const string FreeSynth = "Free_Synth";
+        public const string StartPerks = "Start_Perks";
+        public const string FreeMutation = "Free_Mutation";
         public const string Perk1 = "Perk_1";
         public const string Perk2 = "Perk_2";
         public const string Perk3 = "Perk_3";
@@ -73,11 +74,17 @@ namespace MorePerks
                 "Removing this mod while having a character who has more than the default amount of perks may cause bugs in the stat display window." +
                 "To safely remove this mod set this to 0 and then change class of every merc that had additional perks.");
 
-            this.ModData.AddConfigValue(Keys.HeaderGeneral, Keys.FreeSynth, defaultValue: false,
+            this.ModData.AddConfigValue(Keys.HeaderGeneral, Keys.StartPerks, defaultValue: true,
+                labelKey: "STRING:Clones Start With Perks",
+                tooltipKey: "STRING:This option controls whether, when setting the class for the first time, additional perks are applied.\n\n" +
+                "On - Gain additional perks when setting the class for the first time\n" +
+                "Off - Mutating is required to gain additional perks");
+
+            this.ModData.AddConfigValue(Keys.HeaderGeneral, Keys.FreeMutation, defaultValue: false,
                 labelKey: "STRING:Free Mutation",
                 tooltipKey: "STRING:This option removes the 1 class chip cost of mutating and makes it free.\n\n" +
                 "On - Mutating perks costs nothing\n" +
-                "Off - Mutating perks costs 1 class chip");
+                "Off - Mutating perks costs 1 class chip (10 uses)");
 
             this.ModData.AddConfigValue(Keys.HeaderGeneral, Keys.Perk1, 
                 defaultValue: "1. Random Perk",
@@ -112,9 +119,10 @@ namespace MorePerks
             this.ModData.AddConfigValue(Keys.HeaderGeneral, Keys.About,
                 stringKey: $"STRING:\nThis mod adds up to 5 additional perk slots.\n\n" +
                 "Additional perks are generated when a class is assigned to a clone for the first time.\n\n" +
-                "Additional perks persist across class changes and death.\n\n" +
-                "Additional perks can be rerolled only by 'mutating' the clone on the class select screen.\n\n" +
+                "Additional perks persist across class changes.\n\n" +
+                "Additional perks can be rerolled only by 'mutating' the clone on the class select screen (or dying).\n\n" +
                 "By default, each mutation costs 1 Class Chip, which is chosen randomly from the ship's cargo.\n\n" +
+                "Each Class Chip adds 10 uses to Mutation Chamber.\n\n" +
                 "Perks set to anything other than random are guaranteed to generate when choosing a class and mutating perks.\n\n");
 
             this.ModData.RegisterModConfigData(ModName);

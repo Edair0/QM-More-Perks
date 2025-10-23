@@ -55,6 +55,10 @@
 			<SpecificVersion>False</SpecificVersion>
 			<HintPath>$(GAME_PATH)\..\..\workshop\content\2059170\3469678797\MCM.dll</HintPath>
 		</Reference>
+	    <Reference Include="SimpleJSON, Version=0.0.0.0, Culture=neutral">
+			<SpecificVersion>False</SpecificVersion>
+			<HintPath>$(ManagedPath)SimpleJSON.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" ExcludeAssets="runtime" />
