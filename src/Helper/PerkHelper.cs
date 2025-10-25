@@ -1,6 +1,7 @@
 ﻿using MGSC;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,7 +10,38 @@ namespace MorePerks.Helper
 {
     public static class PerkHelper
     {
-        public static Perk GetRandomCustomPerk(PerkFactory perkFactory, HashSet<string> ExistingPerks, bool EnsureForcedPerks)
+        private static Dictionary<string, PerkParameter> SavedCustomParameters = new Dictionary<string, PerkParameter>();
+
+        public static void SaveCustomParameters(Perk perk)
+        {
+            if (perk.HasParameter("MorePerks_CustomPerk") && !string.IsNullOrEmpty(perk.NextPerkId))
+            {
+                SavedCustomParameters[perk.NextPerkId] = perk.Get("MorePerks_CustomPerk");
+            }
+        }
+
+        public static void SaveCustomParameters(List<Perk> perks)
+        {
+            foreach (Perk perk in perks) { SaveCustomParameters(perk); }
+        }
+
+        public static void RestoreCustomParameters(Perk perk)
+        {
+            if (SavedCustomParameters.Count <= 0) { return; }
+
+            if (SavedCustomParameters.ContainsKey(perk.PerkId) && !perk.HasParameter("MorePerks_CustomPerk"))
+            {
+                perk.Parameters.Add(SavedCustomParameters[perk.PerkId]);
+            }
+            SavedCustomParameters.Remove(perk.PerkId);
+        }
+
+        public static void RestoreCustomParameters(List<Perk> perks)
+        {
+            foreach (Perk perk in perks) { RestoreCustomParameters(perk); }
+        }
+
+        public static Perk CreateRandomCustomPerk(PerkFactory perkFactory, HashSet<string> ExistingPerks, bool EnsureForcedPerks)
         {
             return CreateCustomPerk(perkFactory, GetRandomPerkID(ExistingPerks, EnsureForcedPerks));
         }
@@ -103,7 +135,7 @@ namespace MorePerks.Helper
             // We loop to reroll our already existing perks
             foreach (int i in customPerkIndices)
             {
-                currentPerks[i] = PerkHelper.GetRandomCustomPerk(perkFactory, ExisitngPerks, true);
+                currentPerks[i] = PerkHelper.CreateRandomCustomPerk(perkFactory, ExisitngPerks, true);
             }
 
             // How much perks we need to add to meet mod options
@@ -112,7 +144,7 @@ namespace MorePerks.Helper
             // we add new perks if necessary
             for (int i = 0; i < perksToAdd; i++)
             {
-                currentPerks.Add(PerkHelper.GetRandomCustomPerk(perkFactory, ExisitngPerks, true));
+                currentPerks.Add(PerkHelper.CreateRandomCustomPerk(perkFactory, ExisitngPerks, true));
             }
 
             // If character used to have extra slot talent but doens't have it anymore then its need to be removed manually

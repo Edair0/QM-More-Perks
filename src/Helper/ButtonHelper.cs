@@ -18,14 +18,14 @@ namespace MorePerks.Helper
             if (Plugin.ConfigGeneral.ModData.GetConfigValue<bool>(Keys.FreeMutation))
             {
                 canInteract = true;
-                RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonFree.Key);
+                buttonToClean.ChangeLabel(ModLocalization.MutateButtonFree.Key);
             }
 
             // If we have some uses left then we also allow mutation
             else if (Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) > 0)
             {
                 canInteract = true;
-                RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonUses[Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) - 1].Key);
+                buttonToClean.ChangeLabel(ModLocalization.MutateButtonUses[Plugin.Save.GetCurrentSlotValue<int>(SaveVars.MutateUsesLeft) - 1].Key);
             }
 
             // If we don't have then we check if there is chip in cargo
@@ -33,10 +33,10 @@ namespace MorePerks.Helper
             {
                 List<ItemStorage> cargo = UI.Get<SpaceshipScreen>()._magnumCargo.ShipCargo;
                 canInteract = cargo.Any(storage => storage != null && storage.ContainsItem("classUSB"));
-                RerollPerksButton.ChangeLabel(ModLocalization.MutateButtonCharge.Key);
+                buttonToClean.ChangeLabel(ModLocalization.MutateButtonCharge.Key);
             }
-            RerollPerksButton.gameObject.SetActive(true);
-            RerollPerksButton.SetInteractable(canInteract);
+            buttonToClean.gameObject.SetActive(true);
+            buttonToClean.SetInteractable(canInteract);
             return canInteract;
         }
 

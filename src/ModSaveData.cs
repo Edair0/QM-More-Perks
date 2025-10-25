@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
+using static MorePerks.ModPatches;
 
 namespace MorePerks
 {
@@ -27,9 +28,17 @@ namespace MorePerks
     public static class Patch_GameModeStateMachine_ProcessStartGame
     {
         
-        public static void Postfix(int slot)
+        public static void Postfix(bool newGame, int slot)
         {
-            Plugin.Save.LoadFromDisk();
+            if (newGame)
+            {
+                Plugin.Save.SetCurrentSlotValue<int>(SaveVars.MutateUsesLeft, 10);
+                Plugin.Save.SaveToDisk();
+            }
+            else
+            {
+                Plugin.Save.LoadFromDisk();
+            }
             Plugin.Save.CurrentSlot = slot;
         }
     }

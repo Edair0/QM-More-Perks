@@ -227,7 +227,7 @@ namespace MorePerks
                     int perksLeftToAdd = Plugin.ConfigGeneral.ModData.GetConfigValue<int>(Keys.PerkAmount) - perks.Count(perk => perk.HasParameter("MorePerks_CustomPerk"));
                     while (perksLeftToAdd > 0)
                     {
-                        perks.Add(PerkHelper.GetRandomCustomPerk(StoredPerkFactory, ExistingPerks, true));
+                        perks.Add(PerkHelper.CreateRandomCustomPerk(StoredPerkFactory, ExistingPerks, true));
                         perksLeftToAdd--;
                     }
                 }
@@ -237,31 +237,52 @@ namespace MorePerks
             }
         }
 
+        // Patch to fix training targeting my modified perks that has no next rank. Easier to replace everything as original function seems unfinished
+        [HarmonyPatch(typeof(MercenarySystem), nameof(MercenarySystem.GetPerkForTraining))]
+        public static class Patch_MercenarySystem_GetPerkForTraining
+        {
+            public static bool Prefix(MagnumProgression magnumSpaceship, Mercenary mercenary, ref Perk __result) 
+            {
+                float limit = Mathf.Min(magnumSpaceship.TrainingCenterPerkLevelLimit, 4f);
+                __result = null;
+                foreach (Perk perk in mercenary.CreatureData.Perks)
+                {
+                    if (perk.PerkType != PerkType.Talent && perk.PerkType != PerkType.Rank && perk.PerkType != PerkType.Ultimate)
+                    {
+                        ParseHelper.GetGradeByPerkId(perk.PerkId, out int level, out _, out _);
+                        if ((float)level < limit && !string.IsNullOrEmpty(perk.NextPerkId))
+                        {
+                            __result = perk;
+                        }
+                    }
+                }
+                return false;
+            }
+        }
+
+        // Patch to handle level up of custom perks. Without this MorePerks_CustomPerk is not keep on levelup
+        [HarmonyPatch(typeof(MercenarySystem), nameof(MercenarySystem.LevelUpPerk))]
+        public static class Patch_MercenarySystem_LevelUpPerk
+        {
+            public static void Prefix(Mercenary mercenary, Perk perk) 
+            {
+                if (!string.IsNullOrEmpty(perk.NextPerkId)) 
+                {
+                    PerkHelper.SaveCustomParameters(perk); 
+                }           
+            }
+            public static void Postfix(Mercenary mercenary) 
+            { 
+                PerkHelper.RestoreCustomParameters(mercenary.CreatureData.Perks); 
+            }
+        }
+
         // Patch to handle level up of custom perks. Without this MorePerks_CustomPerk is not keep on levelup
         [HarmonyPatch(typeof(PerkSystem), nameof(PerkSystem.DoLevelUpPerks))]
         public static class Patch_PerkSystem_DoLevelUpPerks
         {
-            private static Dictionary<string, PerkParameter> savedCustomParam = new Dictionary<string, PerkParameter>();
-
-            public static void Prefix(List<Perk> perksToLevelUp)
-            {
-                savedCustomParam.Clear();
-                foreach(Perk perk in perksToLevelUp)
-                {
-                    if (perk.HasParameter("MorePerks_CustomPerk")) { savedCustomParam[perk.NextPerkId] = perk.Get("MorePerks_CustomPerk"); }
-                }
-            }
-
-            public static void Postfix(Mercenary mercenary)
-            {
-                foreach (KeyValuePair<string, PerkParameter> kvp in savedCustomParam)
-                {
-                    foreach (Perk perk in mercenary.CreatureData.Perks)
-                    {
-                        if(kvp.Key == perk.PerkId) { perk.Parameters.Add(kvp.Value); }
-                    }
-                }
-            }
+            public static void Prefix(List<Perk> perksToLevelUp) { PerkHelper.SaveCustomParameters(perksToLevelUp); }
+            public static void Postfix(Mercenary mercenary) { PerkHelper.RestoreCustomParameters(mercenary.CreatureData.Perks); }
         }
     }
 }

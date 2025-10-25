@@ -32,8 +32,6 @@ namespace MorePerks
 
             ConfigGeneral = new ModConfigGeneral("QM More Perks", ConfigPath);
             Save = new ModSave(SavePath);
-
-            Harmony harmony = new Harmony("Edair0_" + ModAssemblyName);
             new Harmony("Edair0_" + ModAssemblyName).PatchAll();
         }
 
